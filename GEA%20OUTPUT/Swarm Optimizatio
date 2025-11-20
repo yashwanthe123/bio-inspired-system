@@ -1,0 +1,54 @@
+import numpy as np
+
+num_drones = 5
+area_size = 20
+num_particles = 30
+iterations = 10
+
+w = 0.5
+c1 = 1.5
+c2 = 1.5
+
+dim = num_drones * 2
+
+particles = np.random.uniform(0, area_size, (num_particles, dim))
+velocities = np.zeros((num_particles, dim))
+
+pbest_positions = particles.copy()
+pbest_scores = np.full(num_particles, -np.inf)
+
+gbest_position = None
+gbest_score = -np.inf
+
+def fitness(position):
+    x = np.sum(position)
+    return (2 * x + 5 * x + 20)
+
+if __name__ == "__main__":
+    for it in range(iterations):
+        for i in range(num_particles):
+            score = fitness(particles[i])
+            if score > pbest_scores[i]:
+                pbest_scores[i] = score
+                pbest_positions[i] = particles[i].copy()
+            if score > gbest_score:
+                gbest_score = score
+                gbest_position = particles[i].copy()
+
+        for i in range(num_particles):
+            r1 = np.random.rand(dim)
+            r2 = np.random.rand(dim)
+            velocities[i] = (
+                w * velocities[i]
+                + c1 * r1 * (pbest_positions[i] - particles[i])
+                + c2 * r2 * (gbest_position - particles[i])
+            )
+            particles[i] += velocities[i]
+            particles[i] = np.clip(particles[i], 0, area_size)
+
+        print(f"Iteration {it + 1}, Best Fitness: {gbest_score:.2f}")
+
+    print("\nOptimized drone waypoints (x,y):")
+    optimized_coords = gbest_position.reshape((num_drones, 2))
+    for idx, coord in enumerate(optimized_coords):
+        print(f"Drone {idx + 1}: {coord}")
