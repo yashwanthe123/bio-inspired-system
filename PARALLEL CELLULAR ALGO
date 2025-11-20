@@ -1,0 +1,99 @@
+import numpy as np
+import random
+import copy
+
+num_customers = int(input("Enter number of customers (excluding depot): "))
+num_vehicles = int(input("Enter number of vehicles: "))
+
+print("\nEnter the distance matrix (including depot 0):")
+print(f"Matrix should be {num_customers + 1} x {num_customers + 1}")
+distance_matrix = []
+for i in range(num_customers + 1):
+    row = list(map(int, input(f"Row {i+1}: ").split()))
+    if len(row) != num_customers + 1:
+        raise ValueError("Each row must have length num_customers+1")
+    distance_matrix.append(row)
+distance_matrix = np.array(distance_matrix)
+
+rows = int(input("\nEnter number of grid rows: "))
+cols = int(input("Enter number of grid columns: "))
+grid_dim = (rows, cols)
+population_size = rows * cols
+num_generations = int(input("\nEnter number of generations: "))
+
+def generate_individual():
+    perm = list(range(1, num_customers + 1))
+    random.shuffle(perm)
+    return perm
+
+population = [generate_individual() for _ in range(population_size)]
+
+def fitness(individual):
+    split_points = np.linspace(0, num_customers, num_vehicles + 1, dtype=int)
+    total_distance = 0
+    for i in range(num_vehicles):
+        route = [0] + individual[split_points[i]:split_points[i+1]] + [0]
+        for j in range(len(route) - 1):
+            total_distance += distance_matrix[route[j], route[j+1]]
+    return total_distance
+
+def get_neighbors(idx):
+    r, c = divmod(idx, grid_dim[1])
+    neighbors = []
+    for dr in [-1, 0, 1]:
+        for dc in [-1, 0, 1]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < grid_dim[0] and 0 <= nc < grid_dim[1]:
+                n_idx = nr * grid_dim[1] + nc
+                if n_idx != idx:
+                    neighbors.append(n_idx)
+    return neighbors
+
+def crossover(parent1, parent2):
+    size = len(parent1)
+    a, b = sorted(random.sample(range(size), 2))
+    child = [None] * size
+    child[a:b] = parent1[a:b]
+    pointer = b
+    for gene in parent2[b:] + parent2[:b]:
+        if gene not in child:
+            if pointer == size:
+                pointer = 0
+            child[pointer] = gene
+            pointer += 1
+    return child
+
+def mutate(individual):
+    a, b = random.sample(range(len(individual)), 2)
+    individual[a], individual[b] = individual[b], individual[a]
+    return individual
+
+def pca_iteration(pop):
+    new_pop = copy.deepcopy(pop)
+    for idx in range(len(pop)):
+        neighbors = get_neighbors(idx)
+        if not neighbors:
+            continue
+        partner_idx = random.choice(neighbors)
+        parent1 = pop[idx]
+        parent2 = pop[partner_idx]
+        child = crossover(parent1, parent2)
+        if random.random() < 0.2:
+            child = mutate(child)
+        if fitness(child) < fitness(pop[idx]):
+            new_pop[idx] = child
+    return new_pop
+
+for gen in range(num_generations):
+    population = pca_iteration(population)
+    best_fitness = min(fitness(ind) for ind in population)
+    print(f"Generation {gen+1}: Best total distance = {best_fitness}")
+
+best_individual = min(population, key=fitness)
+print("\nBest route assignment (split evenly):")
+split_points = np.linspace(0, num_customers, num_vehicles + 1, dtype=int)
+for i in range(num_vehicles):
+    route = [0] + best_individual[split_points[i]:split_points[i+1]] + [0]
+    print(f"Vehicle {i+1} route: {route}")
+
+print(f"\nTotal distance:\n{fitness(best_individual)}")
