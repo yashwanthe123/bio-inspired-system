@@ -1,0 +1,78 @@
+import random
+import math
+
+weights = [10, 20, 30, 40, 15, 25, 35]
+values = [60, 100, 120, 240, 80, 150, 200]
+capacity = 100
+
+n_items = len(weights)
+n_nests = 15
+max_iter = 50
+pa = 0.25
+
+def fitness(solution):
+    total_weight = sum(w for w, s in zip(weights, solution) if s == 1)
+    total_value = sum(v for v, s in zip(values, solution) if s == 1)
+    if total_weight > capacity:
+        return 0
+    return total_value
+
+def generate_nest():
+    return [random.randint(0, 1) for _ in range(n_items)]
+
+def levy_flight(Lambda=1.5):
+    sigma_u = (math.gamma(1 + Lambda) * math.sin(math.pi * Lambda / 2) /
+               (math.gamma((1 + Lambda) / 2) * Lambda * 2 ** ((Lambda - 1) / 2))) ** (1 / Lambda)
+    u = random.gauss(0, sigma_u)
+    v = random.gauss(0, 1)
+    step = u / (abs(v) ** (1 / Lambda))
+    return step
+
+def get_cuckoo(nest, best_nest):
+    new_nest = []
+    for xi, bi in zip(nest, best_nest):
+        step = levy_flight()
+        val = xi + step * (xi - bi)
+        s = 1 / (1 + math.exp(-val))
+        new_val = 1 if s > 0.5 else 0
+        new_nest.append(new_val)
+    return new_nest
+
+def cuckoo_search():
+    nests = [generate_nest() for _ in range(n_nests)]
+    fitness_values = [fitness(n) for n in nests]
+    best_index = max(range(len(fitness_values)), key=lambda i: fitness_values[i])
+    best_nest = nests[best_index][:]
+    best_fitness = fitness_values[best_index]
+
+    for iteration in range(1, max_iter + 1):
+        for i in range(n_nests):
+            new_nest = get_cuckoo(nests[i], best_nest)
+            new_fitness = fitness(new_nest)
+            if new_fitness > fitness_values[i]:
+                nests[i] = new_nest
+                fitness_values[i] = new_fitness
+
+        for i in range(n_nests):
+            if random.random() < pa:
+                nests[i] = generate_nest()
+                fitness_values[i] = fitness(nests[i])
+
+        current_best_index = max(range(len(fitness_values)), key=lambda i: fitness_values[i])
+        current_best_fitness = fitness_values[current_best_index]
+
+        if current_best_fitness > best_fitness:
+            best_fitness = current_best_fitness
+            best_nest = nests[current_best_index][:]
+
+        if iteration % 10 == 0 or iteration == max_iter:
+            print(f"Iteration {iteration}: Best value so far = {best_fitness}")
+
+    return best_nest, best_fitness
+
+if __name__ == "__main__":
+    best_solution, best_value = cuckoo_search()
+    total_weight = sum(w for w, s in zip(weights, best_solution) if s == 1)
+    print(f"\nBest packing solution (1 = selected): {best_solution}")
+    print(f"Total value of supplies packed: {best_value}")
+    print(f"Total weight: {total_weight}")
